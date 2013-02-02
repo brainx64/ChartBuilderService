@@ -23,12 +23,12 @@ namespace ChartBuilderService
         private Func<double, double> CreateExpressionForX(string expression)
         {
             ExpressionContext context = new ExpressionContext();
+
             // Define some variables
             context.Variables["x"] = 0.0d;
 
             // Use the variables in the expression
             IDynamicExpression e = context.CompileDynamic(expression);
-
 
             Func<double, double> expressionEvaluator = (double input) =>
             {
@@ -48,26 +48,29 @@ namespace ChartBuilderService
 
             context.Variables["x"] = 0.0d;
 
-            IDynamicExpression f = null;
+            IDynamicExpression fx = null;
 
             try
             {
-                f = context.CompileDynamic(chart.Expression);
+                fx = context.CompileDynamic(chart.Expression);
             }
             catch (ExpressionCompileException)
             {
                 return chart;
             }
-            
-            IEnumerable<Double> data = Enumerable.Range(0, 10 * 10).Select(i => (Double)i);
+
+            Int32 pointsCount = 1000;
+            Double coefficient = (chart.EndX - chart.StartX) / pointsCount;
+
+            IEnumerable<Double> data = Enumerable.Range(0, pointsCount).Select(i => chart.StartX + (Double)i * coefficient);
 
             EnumerableDataSource<Double> pointDataSource = new EnumerableDataSource<Double>(data);
-            pointDataSource.SetXMapping(i => i / 10);
+            pointDataSource.SetXMapping(i => i);
 
             Func<Double, Double> expressionEvaluator = (Double i) =>
             {
-                context.Variables["x"] = i / 10;
-                return (Double)f.Evaluate();
+                context.Variables["x"] = i;
+                return (Double)fx.Evaluate();
             };
 
             pointDataSource.SetYMapping(expressionEvaluator);
@@ -81,13 +84,17 @@ namespace ChartBuilderService
                     ChartPlotter chartProtter = new ChartPlotter();
                     chartProtter.Width = chart.Width;
                     chartProtter.Height = chart.Height;
-
+                    
                     LineGraph lineGraph = new LineGraph(pointDataSource);
+                    lineGraph.LinePen = new System.Windows.Media.Pen(lineGraph.LinePen.Brush, 2.0);
                     chartProtter.Children.Add(lineGraph);
+                    chartProtter.LegendVisible = false;
 
-                    MemoryStream memoryStream = new MemoryStream();
-                    chartProtter.SaveScreenshotToStream(memoryStream, "png");
-                    chart.ImageBytes = memoryStream.ToArray();
+                    using (MemoryStream memoryStream = new MemoryStream())
+                    {
+                        chartProtter.SaveScreenshotToStream(memoryStream, "png");
+                        chart.ImageBytes = memoryStream.ToArray();
+                    }
                 }
             }));
 

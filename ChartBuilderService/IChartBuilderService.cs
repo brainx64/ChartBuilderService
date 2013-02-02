@@ -22,6 +22,12 @@ namespace ChartBuilderService
         public String Expression { get; set; }
 
         [DataMember]
+        public Double StartX { get; set; }
+
+        [DataMember]
+        public Double EndX { get; set; }
+
+        [DataMember]
         public Int32 Width { get; set; }
 
         [DataMember]
@@ -29,5 +35,8 @@ namespace ChartBuilderService
 
         [DataMember]
         public Byte[] ImageBytes { get; set; }
+
+        [DataMember]
+        public String ErrorMessage { get; set; }
     }
 }
