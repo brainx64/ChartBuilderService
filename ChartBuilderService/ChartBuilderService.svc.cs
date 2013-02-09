@@ -16,31 +16,11 @@ using Ciloci.Flee.CalcEngine;
 
 namespace ChartBuilderService
 {
-    // ПРИМЕЧАНИЕ. Команду "Переименовать" в меню "Рефакторинг" можно использовать для одновременного изменения имени класса "Service1" в коде, SVC-файле и файле конфигурации.
-    // ПРИМЕЧАНИЕ. Чтобы запустить клиент проверки WCF для тестирования службы, выберите элементы Service1.svc или Service1.svc.cs в обозревателе решений и начните отладку.
     public class ChartBuilderService : IChartBuilderService
     {
-        private Func<double, double> CreateExpressionForX(string expression)
-        {
-            ExpressionContext context = new ExpressionContext();
+        private const Int32 POINTS_COUNT = 1000;
 
-            // Define some variables
-            context.Variables["x"] = 0.0d;
-
-            // Use the variables in the expression
-            IDynamicExpression e = context.CompileDynamic(expression);
-
-            Func<double, double> expressionEvaluator = (double input) =>
-            {
-                context.Variables["x"] = input;
-                var result = (double)e.Evaluate();
-                return result;
-            };
-
-            return expressionEvaluator;
-        }
-
-        public Chart GetChart(Chart chart)
+        private Func<double, double> CreateExpressionEvaluator(string expression)
         {
             ExpressionContext context = new ExpressionContext();
             context.Options.EmitToAssembly = false;
@@ -52,20 +32,12 @@ namespace ChartBuilderService
 
             try
             {
-                fx = context.CompileDynamic(chart.Expression);
+                fx = context.CompileDynamic(expression);
             }
             catch (ExpressionCompileException)
             {
-                return chart;
+                return null;
             }
-
-            Int32 pointsCount = 1000;
-            Double coefficient = (chart.EndX - chart.StartX) / pointsCount;
-
-            IEnumerable<Double> data = Enumerable.Range(0, pointsCount).Select(i => chart.StartX + (Double)i * coefficient);
-
-            EnumerableDataSource<Double> pointDataSource = new EnumerableDataSource<Double>(data);
-            pointDataSource.SetXMapping(i => i);
 
             Func<Double, Double> expressionEvaluator = (Double i) =>
             {
@@ -73,8 +45,67 @@ namespace ChartBuilderService
                 return (Double)fx.Evaluate();
             };
 
-            pointDataSource.SetYMapping(expressionEvaluator);
-            
+            return expressionEvaluator;
+        }
+
+        private List<List<Double>> SplitData(IEnumerable<Double> data, Func<Double, Double> expressionEvaluator, Double minY, Double maxY)
+        {
+            List<List<Double>> dataRanges = new List<List<Double>>();
+            List<Double> dataRange = null;
+
+            foreach (Double x in data)
+            {
+                Double y = expressionEvaluator(x);
+
+                if (Double.IsNaN(y) || Double.IsInfinity(y) || y < minY || y > maxY)
+                {
+                    if (dataRange != null)
+                    {
+                        dataRanges.Add(dataRange);
+                        dataRange = null;
+                    }
+
+                    continue;
+                }
+
+                if (dataRange == null)
+                {
+                    dataRange = new List<Double>();
+                }
+
+                dataRange.Add(x);
+            }
+
+            if (dataRange != null)
+            {
+                dataRanges.Add(dataRange);
+            }
+
+            return dataRanges;
+        }
+
+        private List<EnumerableDataSource<Double>> CreatePointDataSource(Chart chart)
+        {
+            Double coefficient = (chart.MaxX - chart.MinX) / POINTS_COUNT;
+            IEnumerable<Double> data = Enumerable.Range(0, POINTS_COUNT).Select(i => chart.MinX + (Double)i * coefficient);
+            Func<Double, Double> expressionEvaluator = this.CreateExpressionEvaluator(chart.Expression);
+
+            List<List<Double>> dataRanges = this.SplitData(data, expressionEvaluator, chart.MinY, chart.MaxY);
+            List<EnumerableDataSource<Double>> pointDataSources = new List<EnumerableDataSource<Double>>();
+
+            foreach (List<Double> dataRange in dataRanges)
+            {
+                EnumerableDataSource<Double> pointDataSource = new EnumerableDataSource<Double>(dataRange);
+                pointDataSource.SetXMapping(i => i);
+                pointDataSource.SetYMapping(expressionEvaluator);
+                pointDataSources.Add(pointDataSource);
+            }
+
+            return pointDataSources;
+        }
+
+        public Chart GetChart(Chart chart)
+        {
             OperationContext operationContext = OperationContext.Current;
 
             Thread thread = new Thread(new ThreadStart(delegate
@@ -84,10 +115,16 @@ namespace ChartBuilderService
                     ChartPlotter chartProtter = new ChartPlotter();
                     chartProtter.Width = chart.Width;
                     chartProtter.Height = chart.Height;
-                    
-                    LineGraph lineGraph = new LineGraph(pointDataSource);
-                    lineGraph.LinePen = new System.Windows.Media.Pen(lineGraph.LinePen.Brush, 2.0);
-                    chartProtter.Children.Add(lineGraph);
+
+                    List<EnumerableDataSource<Double>> pointDataSources = this.CreatePointDataSource(chart);
+
+                    foreach (EnumerableDataSource<Double> pointDataSource in pointDataSources)
+                    {
+                        LineGraph lineGraph = new LineGraph(pointDataSource);
+                        lineGraph.LinePen = new System.Windows.Media.Pen(lineGraph.LinePen.Brush, 2.0);
+                        chartProtter.Children.Add(lineGraph);
+                    }
+
                     chartProtter.LegendVisible = false;
 
                     using (MemoryStream memoryStream = new MemoryStream())

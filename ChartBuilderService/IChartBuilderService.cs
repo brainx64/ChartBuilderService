@@ -22,10 +22,16 @@ namespace ChartBuilderService
         public String Expression { get; set; }
 
         [DataMember]
-        public Double StartX { get; set; }
+        public Double MinX { get; set; }
 
         [DataMember]
-        public Double EndX { get; set; }
+        public Double MaxX { get; set; }
+
+        [DataMember]
+        public Double MinY { get; set; }
+
+        [DataMember]
+        public Double MaxY { get; set; }
 
         [DataMember]
         public Int32 Width { get; set; }
