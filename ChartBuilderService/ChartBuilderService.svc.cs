@@ -110,12 +110,12 @@ namespace ChartBuilderService
                 return chart;
             }
 
-            if (chart.MaxX - chart.MaxX <= 0)
+            if (chart.MaxX - chart.MinX <= 0)
             {
                 return chart;
             }
 
-            if (chart.MaxY - chart.MaxY <= 0)
+            if (chart.MaxY - chart.MinY <= 0)
             {
                 return chart;
             }
