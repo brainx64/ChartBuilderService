@@ -84,11 +84,10 @@ namespace ChartBuilderService
             return dataRanges;
         }
 
-        private List<EnumerableDataSource<Double>> CreatePointDataSource(Chart chart)
+        private List<EnumerableDataSource<Double>> CreatePointDataSources(Chart chart, Func<Double, Double> expressionEvaluator)
         {
             Double coefficient = (chart.MaxX - chart.MinX) / POINTS_COUNT;
             IEnumerable<Double> data = Enumerable.Range(0, POINTS_COUNT).Select(i => chart.MinX + (Double)i * coefficient);
-            Func<Double, Double> expressionEvaluator = this.CreateExpressionEvaluator(chart.Expression);
 
             List<List<Double>> dataRanges = this.SplitData(data, expressionEvaluator, chart.MinY, chart.MaxY);
             List<EnumerableDataSource<Double>> pointDataSources = new List<EnumerableDataSource<Double>>();
@@ -106,6 +105,33 @@ namespace ChartBuilderService
 
         public Chart GetChart(Chart chart)
         {
+            if (String.IsNullOrEmpty(chart.Expression))
+            {
+                return chart;
+            }
+
+            if (chart.MaxX - chart.MaxX <= 0)
+            {
+                return chart;
+            }
+
+            if (chart.MaxY - chart.MaxY <= 0)
+            {
+                return chart;
+            }
+
+            if (chart.Width <= 0 || chart.Height <= 0)
+            {
+                return chart;
+            }
+
+            Func<Double, Double> expressionEvaluator = this.CreateExpressionEvaluator(chart.Expression);
+
+            if (expressionEvaluator == null)
+            {
+                return chart;
+            }
+
             OperationContext operationContext = OperationContext.Current;
 
             Thread thread = new Thread(new ThreadStart(delegate
@@ -116,7 +142,7 @@ namespace ChartBuilderService
                     chartProtter.Width = chart.Width;
                     chartProtter.Height = chart.Height;
 
-                    List<EnumerableDataSource<Double>> pointDataSources = this.CreatePointDataSource(chart);
+                    List<EnumerableDataSource<Double>> pointDataSources = this.CreatePointDataSources(chart, expressionEvaluator);
 
                     foreach (EnumerableDataSource<Double> pointDataSource in pointDataSources)
                     {
