@@ -110,6 +110,11 @@ namespace ChartBuilderService
                 return chart;
             }
 
+            if (!chart.Expression.ToLower().Contains('x'))
+            {
+                return chart;
+            }
+
             if (chart.MaxX - chart.MinX <= 0)
             {
                 return chart;
@@ -125,7 +130,7 @@ namespace ChartBuilderService
                 return chart;
             }
 
-            Func<Double, Double> expressionEvaluator = this.CreateExpressionEvaluator(chart.Expression);
+            Func<Double, Double> expressionEvaluator = this.CreateExpressionEvaluator(chart.Expression.Replace(",", "."));
 
             if (expressionEvaluator == null)
             {
